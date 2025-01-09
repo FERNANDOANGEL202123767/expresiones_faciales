@@ -153,6 +153,46 @@ def analyze():
         print(f"Error en /analyze: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
+@app.route('/visualize_dataset', methods=['GET'])
+def visualize_dataset():
+    """Visualizar imágenes del dataset con etiquetas."""
+    try:
+        df = load_dataset()
+        label_to_text = {0: 'Ira', 1: 'Odio', 2: 'Tristeza', 3: 'Felicidad', 4: 'Sorpresa'}
+
+        # Crear figuras para las primeras imágenes de cada emoción
+        emotions = [0, 1, 2, 3, 4]
+        image_results = []
+
+        for i in emotions:
+            data = df[df['emotion'] == i][:1]
+            if data.empty:
+                continue
+
+            img = data[' pixels'].iloc[0]
+            img = img.reshape(96, 96)
+
+            # Crear figura
+            plt.clf()
+            fig, ax = plt.subplots()
+            ax.imshow(img, cmap='gray')
+            ax.set_title(label_to_text[i])
+
+            # Guardar la imagen generada en memoria
+            buf = BytesIO()
+            plt.savefig(buf, format='png')
+            buf.seek(0)
+            img_base64 = base64.b64encode(buf.getvalue()).decode('utf-8')
+            buf.close()
+
+            image_results.append({'emotion': label_to_text[i], 'image': img_base64})
+
+        return jsonify({'success': True, 'images': image_results})
+
+    except Exception as e:
+        print(f"Error en /visualize_dataset: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/static/uploads/<filename>')
 def uploaded_file(filename):
     """Ruta para servir archivos subidos."""
