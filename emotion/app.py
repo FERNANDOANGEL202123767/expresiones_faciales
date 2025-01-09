@@ -45,6 +45,39 @@ def load_dataset():
     facialexpression_df[' pixels'] = facialexpression_df[' pixels'].apply(lambda x: resize(x))
     return facialexpression_df
 
+def process_image(image_path, operation):
+    """Procesar la imagen según la operación seleccionada."""
+    try:
+        # Leer la imagen
+        image = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
+        if image is None:
+            raise ValueError("No se pudo cargar la imagen.")
+
+        # Operaciones disponibles
+        if operation == "original":
+            result_image = image
+        elif operation == "flip":
+            result_image = cv2.flip(image, 1)
+        elif operation == "brightness":
+            result_image = cv2.convertScaleAbs(image, alpha=1.2, beta=30)
+        elif operation == "flip_vertical":
+            result_image = cv2.flip(image, 0)
+        else:
+            raise ValueError("Operación no válida.")
+
+        # Convertir la imagen procesada a base64
+        buf = BytesIO()
+        plt.imsave(buf, result_image, cmap='gray', format='png')
+        buf.seek(0)
+        image_base64 = base64.b64encode(buf.getvalue()).decode('utf-8')
+        buf.close()
+
+        return image_base64
+
+    except Exception as e:
+        print(f"Error en process_image: {str(e)}")
+        raise
+
 @app.route('/explore', methods=['GET'])
 def explore_dataset():
     try:
