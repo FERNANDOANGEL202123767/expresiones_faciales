@@ -1,3 +1,4 @@
+
 import os
 import pandas as pd
 import numpy as np
@@ -12,7 +13,6 @@ from io import BytesIO
 import base64
 from pyngrok import ngrok
 import mediapipe as mp
-from tensorflow.keras.models import load_model
 
 # Crear la aplicación Flask
 app = Flask(__name__)
@@ -25,13 +25,6 @@ app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16 MB de tamaño máximo 
 
 # Asegurar que exista la carpeta de subida
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-
-# Cargar el modelo preentrenado
-MODEL_PATH = 'emotion_model.h5'
-emotion_model = load_model(MODEL_PATH)
-
-# Etiquetas de emociones
-label_to_text = {1: 'Odio', 2: 'Tristeza', 3: 'Felicidad'}
 
 def allowed_file(filename):
     """Verificar si el archivo tiene una extensión permitida."""
@@ -55,28 +48,12 @@ def load_dataset():
     return facialexpression_df
 
 def detect_emotion(image_path):
-    """Clasificar la emoción usando un modelo preentrenado."""
-    try:
-        # Leer la imagen y preprocesarla
-        image = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
-        if image is None:
-            raise ValueError("No se pudo cargar la imagen.")
-
-        resized_image = cv2.resize(image, (48, 48)).reshape(1, 48, 48, 1).astype('float32') / 255.0
-
-        # Realizar predicción
-        prediction = emotion_model.predict(resized_image)
-        emotion_id = np.argmax(prediction)
-
-        # Limitar emociones a 'Odio', 'Tristeza', y 'Felicidad'
-        if emotion_id not in label_to_text:
-            return "Emoción desconocida"
-
-        return label_to_text[emotion_id]
-
-    except Exception as e:
-        print(f"Error en detect_emotion: {str(e)}")
-        return "Desconocido"
+    """Clasificar la emoción basada en el dataset."""
+    # Simulación de detección de emoción con las emociones seleccionadas
+    emotions = {0: 'Odio', 1: 'Tristeza', 2: 'Felicidad'}
+    emotion_id = np.random.randint(0, 3)  # Seleccionar emoción aleatoria entre las tres
+    return emotions[emotion_id]
+    
 
 def process_image_with_points(image_path):
     """Detectar puntos faciales y clasificar emociones."""
@@ -183,9 +160,10 @@ def visualize_dataset():
     """Visualizar imágenes del dataset con etiquetas."""
     try:
         df = load_dataset()
+        label_to_text = {0: 'Odio', 1: 'Tristeza', 2: 'Felicidad'}
 
-        # Crear figuras para las primeras imágenes de cada emoción
-        emotions = [1, 2, 3]  # Limitar a 'Odio', 'Tristeza', y 'Felicidad'
+        # Crear figuras para las primeras imágenes de cada emoción seleccionada
+        emotions = [0, 1, 2]
         image_results = []
 
         for i in emotions:
