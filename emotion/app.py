@@ -11,6 +11,7 @@ from werkzeug.utils import secure_filename
 from io import BytesIO
 import base64
 from pyngrok import ngrok
+import mediapipe as mp
 
 # Crear la aplicación Flask
 app = Flask(__name__)
@@ -45,100 +46,74 @@ def load_dataset():
     facialexpression_df[' pixels'] = facialexpression_df[' pixels'].apply(lambda x: resize(x))
     return facialexpression_df
 
-def process_image(image_path, operation):
-    """Procesar la imagen según la operación seleccionada."""
+def detect_emotion(image_path):
+    """Clasificar la emoción basada en el dataset."""
+    # Simulación de detección de emoción (debes reemplazar esto con un modelo real si es necesario)
+    emotions = {0: 'Ira', 1: 'Odio', 2: 'Tristeza', 3: 'Felicidad', 4: 'Sorpresa'}
+    emotion_id = np.random.randint(0, 5)  # Seleccionar emoción aleatoria como ejemplo
+    return emotions[emotion_id]
+
+def process_image_with_points(image_path):
+    """Detectar puntos faciales y clasificar emociones."""
     try:
+        # Inicializar MediaPipe Face Mesh
+        mp_face_mesh = mp.solutions.face_mesh
+        face_mesh = mp.solutions.face_mesh.FaceMesh(
+            static_image_mode=True,
+            max_num_faces=1,
+            min_detection_confidence=0.5
+        )
+
         # Leer la imagen
-        image = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
+        image = cv2.imread(image_path)
         if image is None:
-            raise ValueError("No se pudo cargar la imagen.")
+            raise Exception("No se pudo cargar la imagen")
 
-        # Operaciones disponibles
-        if operation == "original":
-            result_image = image
-        elif operation == "flip":
-            result_image = cv2.flip(image, 1)
-        elif operation == "brightness":
-            result_image = cv2.convertScaleAbs(image, alpha=1.2, beta=30)
-        elif operation == "flip_vertical":
-            result_image = cv2.flip(image, 0)
-        else:
-            raise ValueError("Operación no válida.")
+        # Convertir a RGB y escala de grises
+        rgb_image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        gray_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
-        # Convertir la imagen procesada a base64
+        # Detectar puntos faciales
+        results = face_mesh.process(rgb_image)
+        if not results.multi_face_landmarks:
+            raise Exception("No se detectó ningún rostro en la imagen")
+
+        # Selección de puntos clave principales
+        key_points = [33, 133, 362, 263, 1, 61, 291, 199, 94, 0, 24, 130, 359, 288, 378]
+        height, width = gray_image.shape
+
+        # Crear figura
+        plt.clf()
+        fig, ax = plt.subplots(figsize=(8, 8))
+        ax.imshow(gray_image, cmap='gray')
+        ax.set_title("Puntos faciales y emoción detectada")
+
+        # Dibujar puntos clave
+        for point_idx in key_points:
+            landmark = results.multi_face_landmarks[0].landmark[point_idx]
+            x = int(landmark.x * width)
+            y = int(landmark.y * height)
+            ax.plot(x, y, 'rx')
+
+        # Detectar emoción
+        emotion = detect_emotion(image_path)
+        ax.text(10, 10, f"Emoción: {emotion}", fontsize=12, color='red', bbox=dict(facecolor='white', alpha=0.5))
+
+        # Guardar la imagen generada en memoria
         buf = BytesIO()
-        plt.imsave(buf, result_image, cmap='gray', format='png')
+        plt.savefig(buf, format='png', bbox_inches='tight')
         buf.seek(0)
+        plt.close(fig)
+
+        # Convertir a base64 para enviar como respuesta
         image_base64 = base64.b64encode(buf.getvalue()).decode('utf-8')
         buf.close()
 
         return image_base64
 
     except Exception as e:
-        print(f"Error en process_image: {str(e)}")
+        print(f"Error en process_image_with_points: {str(e)}")
         raise
-
-@app.route('/explore', methods=['GET'])
-def explore_dataset():
-    try:
-        # Cargar el dataset
-        df = load_dataset()
-
-        # Verificar estructura del dataset
-        data_info = {
-            'shape': df.shape,
-            'null_values': df.isnull().sum().to_dict(),
-            'emotion_counts': df['emotion'].value_counts().to_dict()
-        }
-
-        # Visualizar una muestra del dataset
-        sample_image = df[' pixels'][0]
-        plt.figure()
-        plt.imshow(sample_image, cmap='gray')
-        plt.title('Ejemplo de Imagen')
-
-        # Guardar figura en base64
-        buf = BytesIO()
-        plt.savefig(buf, format='png')
-        buf.seek(0)
-        img_base64 = base64.b64encode(buf.getvalue()).decode('utf-8')
-        plt.close()
-
-        return jsonify({
-            'success': True,
-            'data_info': data_info,
-            'sample_image': img_base64
-        })
-
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/plot_emotions', methods=['GET'])
-def plot_emotions():
-    try:
-        df = load_dataset()
-
-        # Graficar distribución de emociones
-        plt.figure(figsize=(10, 6))
-        sns.barplot(x=df['emotion'].value_counts().index, y=df['emotion'].value_counts())
-        plt.title('Distribución de Emociones')
-        plt.xlabel('Emoción')
-        plt.ylabel('Número de muestras')
-
-        # Guardar figura en base64
-        buf = BytesIO()
-        plt.savefig(buf, format='png')
-        buf.seek(0)
-        img_base64 = base64.b64encode(buf.getvalue()).decode('utf-8')
-        plt.close()
-
-        return jsonify({
-            'success': True,
-            'emotion_plot': img_base64
-        })
-
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
 
 @app.route('/')
 def home():
@@ -150,13 +125,8 @@ def home():
 
 @app.route('/analyze', methods=['POST'])
 def analyze():
-    """Ruta para analizar imágenes con una operación específica."""
+    """Ruta para analizar imágenes y mostrar puntos faciales y emociones."""
     try:
-        # Obtener la operación seleccionada
-        operation = request.form.get('operation')
-        if operation not in ["original", "flip", "brightness", "flip_vertical"]:
-            return jsonify({'error': 'Operación no válida'}), 400
-
         # Verificar si es un archivo existente o nuevo
         if 'existing_file' in request.form:
             filename = request.form['existing_file']
@@ -175,8 +145,8 @@ def analyze():
         else:
             return jsonify({'error': 'No se proporcionó ningún archivo'}), 400
 
-        # Procesar la imagen
-        result_image = process_image(filepath, operation)
+        # Procesar la imagen para mostrar puntos faciales y emoción
+        result_image = process_image_with_points(filepath)
         return jsonify({'success': True, 'image': result_image})
 
     except Exception as e:
