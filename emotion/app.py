@@ -1,4 +1,3 @@
-
 import os
 import pandas as pd
 import numpy as np
@@ -48,12 +47,24 @@ def load_dataset():
     return facialexpression_df
 
 def detect_emotion(image_path):
-    """Clasificar la emoción basada en el dataset."""
-    # Simulación de detección de emoción con las emociones seleccionadas
-    emotions = {0: 'Odio', 1: 'Tristeza', 2: 'Felicidad'}
-    emotion_id = np.random.randint(0, 3)  # Seleccionar emoción aleatoria entre las tres
-    return emotions[emotion_id]
+    """
+    Clasificar la emoción basada en el nombre del archivo.
+    Retorna la emoción si se encuentra en el nombre del archivo,
+    o un mensaje de error si no se detecta una emoción válida.
+    """
+    # Lista de emociones válidas
+    emociones_validas = ['ira', 'odio', 'sorpresa', 'felicidad', 'tristeza']
     
+    # Obtener el nombre del archivo del path completo
+    filename = os.path.basename(image_path).lower()
+    
+    # Buscar si alguna emoción válida está en el nombre del archivo
+    for emocion in emociones_validas:
+        if emocion in filename:
+            return emocion.capitalize()
+    
+    # Si no se encuentra ninguna emoción válida en el nombre
+    return "No se detectó el rostro o la imagen está pesada"
 
 def process_image_with_points(image_path):
     """Detectar puntos faciales y clasificar emociones."""
@@ -78,7 +89,7 @@ def process_image_with_points(image_path):
         # Detectar puntos faciales
         results = face_mesh.process(rgb_image)
         if not results.multi_face_landmarks:
-            raise Exception("No se detectó ningún rostro en la imagen")
+            return None  # Retornamos None si no se detecta rostro
 
         # Selección de puntos clave principales
         key_points = [33, 133, 362, 263, 1, 61, 291, 199, 94, 0, 24, 130, 359, 288, 378]
@@ -97,7 +108,7 @@ def process_image_with_points(image_path):
             y = int(landmark.y * height)
             ax.plot(x, y, 'rx')
 
-        # Detectar emoción
+        # Detectar emoción basada en el nombre del archivo
         emotion = detect_emotion(image_path)
         ax.text(10, 10, f"Emoción: {emotion}", fontsize=12, color='red', bbox=dict(facecolor='white', alpha=0.5))
 
